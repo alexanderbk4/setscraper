@@ -66,13 +66,20 @@ In this project we will: scrape musical playlists, clean that data for most impo
 
 ## Installation & Usage
 
+This project uses [uv](https://github.com/astral-sh/uv) as the package manager instead of pip for faster dependency resolution and installation.
+
 ```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # Clone and setup
-git clone https://github.com/yourusername/setscraper.git
+git clone https://github.com/alexanderbk4/setscraper.git
 cd setscraper
 
 # Install dependencies  
-uv pip install -r requirements.txt
+uv sync
 
-# Run basic scraper
-python scraping/setscraper.py
+# Setup virtual environment
+uv sync
+source .venv/bin/activate
+```
