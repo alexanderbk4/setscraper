@@ -148,6 +148,15 @@ def clean_episode_data(df: pd.DataFrame) -> pd.DataFrame:
     if len(cleaned_df) < initial_rows:
         print(f"  - Removed {initial_rows - len(cleaned_df)} duplicate episode_ids")
     
+    # Remove rows that are identical except for episode_id
+    initial_rows = len(cleaned_df)
+    # Get all columns except episode_id for duplicate detection
+    duplicate_columns = [col for col in cleaned_df.columns if col != 'episode_id']
+    if duplicate_columns:
+        cleaned_df = cleaned_df.drop_duplicates(subset=duplicate_columns, keep='first')
+        if len(cleaned_df) < initial_rows:
+            print(f"  - Removed {initial_rows - len(cleaned_df)} rows identical except episode_id")
+    
     print(f"  - Final cleaned dataset: {len(cleaned_df)} rows")
     
     return cleaned_df
