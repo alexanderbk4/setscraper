@@ -78,6 +78,20 @@ def discover_episodes(start_suffix: str = "0000", end_suffix: str = "zzzz", step
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
+    # Speed optimizations
+    chrome_options.add_argument("--disable-images")  # Don't load images
+    chrome_options.add_argument("--disable-javascript")  # Disable JS for faster loading
+    chrome_options.add_argument("--disable-css")  # Disable CSS
+    chrome_options.add_argument("--disable-plugins")  # Disable plugins
+    chrome_options.add_argument("--disable-extensions")  # Disable extensions
+    chrome_options.add_argument("--disable-logging")  # Disable logging
+    chrome_options.add_argument("--disable-default-apps")  # Disable default apps
+    chrome_options.add_argument("--disable-sync")  # Disable sync
+    chrome_options.add_argument("--disable-translate")  # Disable translate
+    chrome_options.add_argument("--disable-web-security")  # Disable web security
+    chrome_options.add_argument("--disable-features=VizDisplayCompositor")  # Disable compositor
+    chrome_options.add_argument("--memory-pressure-off")  # Reduce memory pressure
+    chrome_options.add_argument("--max_old_space_size=4096")  # Increase memory limit
     
     driver = webdriver.Chrome(options=chrome_options)
     discovered_episodes = []
@@ -101,8 +115,8 @@ def discover_episodes(start_suffix: str = "0000", end_suffix: str = "zzzz", step
             try:
                 driver.get(url)
                 
-                # Quick check if page loads (don't wait too long for non-existent pages)
-                WebDriverWait(driver, 5).until(
+                # Faster timeout for non-existent pages
+                WebDriverWait(driver, 3).until(
                     EC.presence_of_element_located((By.TAG_NAME, "body"))
                 )
                 
@@ -119,8 +133,8 @@ def discover_episodes(start_suffix: str = "0000", end_suffix: str = "zzzz", step
             except Exception as e:
                 print(f"✗ Error: {str(e)[:50]}")
             
-            # Small delay to be respectful to BBC servers
-            time.sleep(0.5)
+            # Reduced delay for faster processing
+            time.sleep(0.2)
             
     finally:
         driver.quit()
@@ -304,6 +318,20 @@ def discover_episodes_batch_ids(episode_ids: List[str]):
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
+    # Speed optimizations
+    chrome_options.add_argument("--disable-images")  # Don't load images
+    chrome_options.add_argument("--disable-javascript")  # Disable JS for faster loading
+    chrome_options.add_argument("--disable-css")  # Disable CSS
+    chrome_options.add_argument("--disable-plugins")  # Disable plugins
+    chrome_options.add_argument("--disable-extensions")  # Disable extensions
+    chrome_options.add_argument("--disable-logging")  # Disable logging
+    chrome_options.add_argument("--disable-default-apps")  # Disable default apps
+    chrome_options.add_argument("--disable-sync")  # Disable sync
+    chrome_options.add_argument("--disable-translate")  # Disable translate
+    chrome_options.add_argument("--disable-web-security")  # Disable web security
+    chrome_options.add_argument("--disable-features=VizDisplayCompositor")  # Disable compositor
+    chrome_options.add_argument("--memory-pressure-off")  # Reduce memory pressure
+    chrome_options.add_argument("--max_old_space_size=4096")  # Increase memory limit
     
     driver = webdriver.Chrome(options=chrome_options)
     discovered_episodes = []
@@ -319,8 +347,8 @@ def discover_episodes_batch_ids(episode_ids: List[str]):
             try:
                 driver.get(url)
                 
-                # Quick check if page loads
-                WebDriverWait(driver, 5).until(
+                # Faster timeout for non-existent pages
+                WebDriverWait(driver, 3).until(
                     EC.presence_of_element_located((By.TAG_NAME, "body"))
                 )
                 
@@ -337,8 +365,8 @@ def discover_episodes_batch_ids(episode_ids: List[str]):
             except Exception as e:
                 print(f"✗ Error: {str(e)[:50]}")
             
-            # Small delay to be respectful to BBC servers
-            time.sleep(0.5)
+            # Reduced delay for faster processing
+            time.sleep(0.2)
             
     finally:
         driver.quit()
