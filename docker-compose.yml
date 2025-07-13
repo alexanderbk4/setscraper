@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: setscraper-db
+    environment:
+      POSTGRES_DB: setscraper
+      POSTGRES_USER: setscraper
+      POSTGRES_PASSWORD: setscraper_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./data/database/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U setscraper -d setscraper"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data: 
