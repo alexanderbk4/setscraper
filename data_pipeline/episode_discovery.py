@@ -134,7 +134,7 @@ def discover_episodes(start_suffix: str = "0000", end_suffix: str = "zzzz", step
                 print(f"✗ Error: {str(e)[:50]}")
             
             # Reduced delay for faster processing
-            time.sleep(0.1)
+            time.sleep(0.05)
             
     finally:
         driver.quit()
@@ -366,7 +366,7 @@ def discover_episodes_batch_ids(episode_ids: List[str]):
                 print(f"✗ Error: {str(e)[:50]}")
             
             # Reduced delay for faster processing
-            time.sleep(0.1)
+            time.sleep(0.05)
             
     finally:
         driver.quit()
