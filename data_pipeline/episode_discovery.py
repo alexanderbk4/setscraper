@@ -117,6 +117,48 @@ def discover_episodes_basic(start_suffix: str = "0000", end_suffix: str = "zzzz"
     return pd.DataFrame(discovered_episodes)
 
 
+def discover_episodes_with_channel(start_suffix: str = "0000", end_suffix: str = "zzzz", step: int = 1):
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    driver = webdriver.Chrome(options=chrome_options)
+    discovered_episodes = []
+    try:
+        episode_ids = list(generate_episode_ids(start_suffix, end_suffix))
+        if step > 1:
+            episode_ids = episode_ids[::step]
+        total_episodes = len(episode_ids)
+        print(f"Checking {total_episodes} episode IDs from {start_suffix} to {end_suffix}")
+        for i, episode_id in enumerate(episode_ids, 1):
+            url = f"https://www.bbc.co.uk/programmes/{episode_id}"
+            print(f"[{i}/{total_episodes}] Checking {episode_id}...", end=" ")
+            try:
+                driver.get(url)
+                WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
+                # Parse channel from <title>
+                title = driver.title
+                channel = "Unknown Channel"
+                if title and " - " in title:
+                    parts = title.split(" - ", 1)
+                    if len(parts) == 2:
+                        channel = parts[0].strip()
+                discovered_episodes.append({'episode_id': episode_id, 'channel': channel})
+                print(f"✓ Found: [{channel}]")
+            except TimeoutException:
+                print("✗ Not an existing page")
+            except Exception as e:
+                print(f"✗ Error: {str(e)[:50]}")
+            time.sleep(0.5)
+    finally:
+        driver.quit()
+    return pd.DataFrame(discovered_episodes)
+
+
 if __name__ == "__main__":
     # Example usage - start with a small range to test
     print("Starting BBC 6 Music episode discovery...")
