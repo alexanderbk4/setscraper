@@ -202,16 +202,17 @@ def load_bbc6_episodes_from_db(db_url: str = "postgresql://setscraper:setscraper
     """
     engine = create_engine(db_url)
     
-    # Load episodes filtered for BBC Radio 6 Music
+    # Load episodes filtered for BBC Radio 6 Music and exclude recent episodes (last 48 hours)
     query = """
     SELECT episode_id, channel, show_name, episode_name, broadcast_date
     FROM episodes 
     WHERE channel = 'BBC Radio 6 Music'
+    AND broadcast_date < NOW() - INTERVAL '48 hours'
     ORDER BY broadcast_date DESC
     """
     
     episodes_df = pd.read_sql(query, engine)
-    print(f"Loaded {len(episodes_df)} BBC Radio 6 Music episodes from database")
+    print(f"Loaded {len(episodes_df)} BBC Radio 6 Music episodes from database (excluding last 48 hours)")
     return episodes_df
 
 
@@ -449,13 +450,13 @@ def main():
         print("No BBC Radio 6 Music episodes found in database")
         return
     
-    # Scrape tracks with benchmarking (start with a small number for testing)
+    # Scrape tracks with benchmarking (test with 50 episodes)
     tracks_df = scrape_tracks_with_benchmark(
         episodes_df, 
-        max_episodes=5, 
+        max_episodes=50, 
         save_to_csv=True,
         benchmark=True,
-        notes=""
+        notes="50 episode benchmark test"
     )
     
     if not tracks_df.empty:
