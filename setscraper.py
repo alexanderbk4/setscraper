@@ -5,6 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+import pandas as pd
 import time
 
 def scrape_bbc6_episode(url):
@@ -65,6 +66,8 @@ def scrape_bbc6_episode(url):
                     pass
                 
                 tracks.append({
+                    'dj': dj_name,
+                    'episode': episode_title,
                     'artist': artist,
                     'title': title,
                     'featured_artists': featured_artists if featured_artists else None,
@@ -74,11 +77,11 @@ def scrape_bbc6_episode(url):
                 print(f"Error extracting track: {e}")
                 continue
         
-        return tracks
+        return pd.DataFrame(tracks)
         
     except TimeoutException:
         print("Timed out waiting for page to load")
-        return []
+        return pd.DataFrame()
     
     finally:
         driver.quit()
