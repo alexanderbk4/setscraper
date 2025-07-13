@@ -17,6 +17,14 @@ from .episode_discovery import (
     print_benchmark_summary,
     get_commit_id
 )
+from .csv_merge_clean import (
+    find_csv_files,
+    merge_csv_files,
+    clean_episode_data,
+    analyze_data,
+    print_analysis,
+    save_cleaned_data
+)
 
 __all__ = [
     'scrape_bbc6_episode',
@@ -30,5 +38,11 @@ __all__ = [
     'discover_episodes_parallel_ids',
     'save_benchmark',
     'print_benchmark_summary',
-    'get_commit_id'
+    'get_commit_id',
+    'find_csv_files',
+    'merge_csv_files',
+    'clean_episode_data',
+    'analyze_data',
+    'print_analysis',
+    'save_cleaned_data'
 ] 
