@@ -17,6 +17,7 @@ def scrape_bbc6_episode(url):
     # Initialize the driver
     driver = webdriver.Chrome(options=chrome_options)
     driver.get(url)
+    
     try:
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CLASS_NAME, "segments-list__item"))
@@ -28,8 +29,35 @@ def scrape_bbc6_episode(url):
         print(f"DJ: {dj_name}")
         print(f"Episode: {episode_title}")
 
+        # Extract all music segments
+        music_segments = driver.find_elements(By.CSS_SELECTOR, "li.segments-list__item--music")
+        print(f"Found {len(music_segments)} music segments")
+        
+        tracks = []
+        for segment in music_segments:
+            try:
+                # Extract artist
+                artist_elem = segment.find_element(By.CLASS_NAME, "artist")
+                artist = artist_elem.text if artist_elem else "Unknown Artist"
+                
+                # Extract track title (simplified)
+                title_container = segment.find_element(By.CSS_SELECTOR, "p.no-margin")
+                title = title_container.text.split('\n')[0]  # Simple approach first
+                
+                tracks.append({
+                    'artist': artist,
+                    'title': title,
+                })
+                
+            except Exception as e:
+                print(f"Error extracting track: {e}")
+                continue
+        
+        return tracks
+        
     except TimeoutException:
         print("Timed out waiting for page to load")
+        return []
     
     finally:
         driver.quit()
