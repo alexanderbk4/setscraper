@@ -29,6 +29,15 @@ def scrape_bbc6_episode(url):
         print(f"DJ: {dj_name}")
         print(f"Episode: {episode_title}")
 
+        # Click "Show more" button if it exists
+        try:
+            show_more = driver.find_element(By.CLASS_NAME, "ml__label--more")
+            driver.execute_script("arguments[0].click();", show_more)
+            time.sleep(2)
+            print("Clicked 'Show more' button")
+        except:
+            print("No 'Show more' button found")
+
         # Extract all music segments
         music_segments = driver.find_elements(By.CSS_SELECTOR, "li.segments-list__item--music")
         print(f"Found {len(music_segments)} music segments")
