@@ -9,6 +9,7 @@ from .tracks import extract_tracks_from_episode
 from .episode_discovery import discover_episodes_basic
 from .episode_discovery import discover_episodes_with_channel
 from .episode_discovery import discover_episodes_with_names
+from .episode_discovery import discover_episodes_with_dates
 
 __all__ = [
     'scrape_bbc6_episode',
