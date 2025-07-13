@@ -301,14 +301,14 @@ def scrape_tracks_for_single_episode(episode: pd.Series) -> pd.DataFrame:
         )
         print(f"  Successfully loaded: {url}")
 
-        # Click "Show more" button if it exists to reveal all tracks
-        try:
-            show_more = driver.find_element(By.CLASS_NAME, "ml__label--more")
-            driver.execute_script("arguments[0].click();", show_more)
-            time.sleep(2)
-            print("  Clicked 'Show more' button")
-        except:
-            print("  No 'Show more' button found")
+        # # Click "Show more" button if it exists to reveal all tracks
+        # try:
+        #     show_more = driver.find_element(By.CLASS_NAME, "ml__label--more")
+        #     driver.execute_script("arguments[0].click();", show_more)
+        #     time.sleep(2)
+        #     print("  Clicked 'Show more' button")
+        # except:
+        #     print("  No 'Show more' button found")
 
         # Extract tracks with order tracking
         tracks_df = extract_tracks_from_episode_with_order(driver, dj_name, episode_title, episode_id)
