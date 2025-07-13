@@ -8,8 +8,12 @@ from .tracks import (
     load_bbc6_episodes_from_db,
     scrape_tracks_for_episodes,
     scrape_tracks_for_single_episode,
+    scrape_tracks_with_benchmark,
     extract_tracks_from_episode,
-    extract_single_track
+    extract_single_track,
+    save_track_benchmark,
+    print_track_benchmark_summary,
+    get_commit_id
 )
 from .episode_discovery import (
     discover_episodes, 
@@ -35,8 +39,12 @@ __all__ = [
     'load_bbc6_episodes_from_db',
     'scrape_tracks_for_episodes',
     'scrape_tracks_for_single_episode',
+    'scrape_tracks_with_benchmark',
     'extract_tracks_from_episode',
     'extract_single_track',
+    'save_track_benchmark',
+    'print_track_benchmark_summary',
+    'get_commit_id',
     'discover_episodes',
     'discover_episodes_batch',
     'discover_episodes_batch_ids',
@@ -45,7 +53,6 @@ __all__ = [
     'discover_episodes_parallel_ids',
     'save_benchmark',
     'print_benchmark_summary',
-    'get_commit_id',
     'find_csv_files',
     'merge_csv_files',
     'clean_episode_data',

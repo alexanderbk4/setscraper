@@ -6,6 +6,9 @@ This module handles extracting individual track information from episode pages.
 
 import pandas as pd
 import time
+import os
+import json
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -14,6 +17,177 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from sqlalchemy import create_engine
 from typing import List, Dict, Optional
+
+
+def save_track_benchmark(start_time: float, end_time: float, episodes_processed: int, 
+                        tracks_found: int, max_episodes: Optional[int] = None,
+                        commit_id: str = None, notes: str = ""):
+    """
+    Save benchmark data for track scraping performance.
+    
+    Args:
+        start_time: Start timestamp
+        end_time: End timestamp
+        episodes_processed: Number of episodes processed
+        tracks_found: Number of tracks found
+        max_episodes: Maximum episodes limit if used
+        commit_id: Git commit ID for tracking
+        notes: Additional notes about the run
+    """
+    duration = end_time - start_time
+    episodes_per_second = episodes_processed / duration if duration > 0 else 0
+    episodes_per_minute = episodes_per_second * 60
+    tracks_per_second = tracks_found / duration if duration > 0 else 0
+    tracks_per_episode = tracks_found / episodes_processed if episodes_processed > 0 else 0
+    
+    benchmark_data = {
+        'timestamp': datetime.now().isoformat(),
+        'start_time': start_time,
+        'end_time': end_time,
+        'duration_seconds': duration,
+        'episodes_processed': episodes_processed,
+        'tracks_found': tracks_found,
+        'episodes_per_second': episodes_per_second,
+        'episodes_per_minute': episodes_per_minute,
+        'tracks_per_second': tracks_per_second,
+        'tracks_per_episode': tracks_per_episode,
+        'max_episodes': max_episodes,
+        'commit_id': commit_id,
+        'notes': notes
+    }
+    
+    # Load existing benchmarks or create new file
+    benchmark_file = os.path.join(os.path.dirname(__file__), 'track_scraping_benchmarks.json')
+    benchmarks = []
+    
+    if os.path.exists(benchmark_file):
+        try:
+            with open(benchmark_file, 'r') as f:
+                benchmarks = json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            benchmarks = []
+    
+    benchmarks.append(benchmark_data)
+    
+    # Save updated benchmarks
+    with open(benchmark_file, 'w') as f:
+        json.dump(benchmarks, f, indent=2)
+    
+    print(f"\n📊 TRACK SCRAPING BENCHMARK SAVED:")
+    print(f"   Duration: {duration:.2f} seconds")
+    print(f"   Episodes processed: {episodes_processed}")
+    print(f"   Tracks found: {tracks_found}")
+    print(f"   Speed: {episodes_per_second:.3f} episodes/second ({episodes_per_minute:.1f}/minute)")
+    print(f"   Track rate: {tracks_per_second:.3f} tracks/second")
+    print(f"   Average tracks per episode: {tracks_per_episode:.1f}")
+    print(f"   Benchmark saved to: {benchmark_file}")
+
+
+def get_commit_id():
+    """Get current git commit ID for benchmarking."""
+    try:
+        import subprocess
+        result = subprocess.run(['git', 'rev-parse', 'HEAD'], 
+                              capture_output=True, text=True, check=True)
+        return result.stdout.strip()[:8]  # First 8 characters
+    except:
+        return "unknown"
+
+
+def print_track_benchmark_summary():
+    """Print summary of all track scraping benchmarks."""
+    benchmark_file = os.path.join(os.path.dirname(__file__), 'track_scraping_benchmarks.json')
+    
+    if not os.path.exists(benchmark_file):
+        print("No track scraping benchmarks found.")
+        return
+    
+    try:
+        with open(benchmark_file, 'r') as f:
+            benchmarks = json.load(f)
+        
+        if not benchmarks:
+            print("No track scraping benchmarks found.")
+            return
+        
+        print(f"\n📈 TRACK SCRAPING BENCHMARK SUMMARY ({len(benchmarks)} runs):")
+        print("-" * 80)
+        
+        for i, bench in enumerate(benchmarks[-5:], 1):  # Show last 5 runs
+            print(f"{i}. {bench['timestamp'][:19]} | "
+                  f"{bench['episodes_processed']} episodes | "
+                  f"{bench['tracks_found']} tracks | "
+                  f"{bench['episodes_per_minute']:.1f} ep/min | "
+                  f"{bench['tracks_per_episode']:.1f} tracks/ep | "
+                  f"{bench['notes']}")
+        
+        # Calculate averages
+        avg_episodes_per_min = sum(b['episodes_per_minute'] for b in benchmarks) / len(benchmarks)
+        avg_tracks_per_episode = sum(b['tracks_per_episode'] for b in benchmarks) / len(benchmarks)
+        total_episodes = sum(b['episodes_processed'] for b in benchmarks)
+        total_tracks = sum(b['tracks_found'] for b in benchmarks)
+        total_time = sum(b['duration_seconds'] for b in benchmarks)
+        
+        print("-" * 80)
+        print(f"Average speed: {avg_episodes_per_min:.1f} episodes/minute")
+        print(f"Average tracks per episode: {avg_tracks_per_episode:.1f}")
+        print(f"Total episodes processed: {total_episodes}")
+        print(f"Total tracks found: {total_tracks}")
+        print(f"Total time: {total_time/3600:.1f} hours")
+        
+    except Exception as e:
+        print(f"Error reading track scraping benchmarks: {e}")
+
+
+def scrape_tracks_with_benchmark(episodes_df: pd.DataFrame, 
+                                max_episodes: Optional[int] = None,
+                                save_to_csv: bool = True,
+                                benchmark: bool = True,
+                                notes: str = "") -> pd.DataFrame:
+    """
+    Scrape tracks for episodes with benchmarking.
+    
+    Args:
+        episodes_df: DataFrame containing episodes to process
+        max_episodes: Maximum number of episodes to process (for testing)
+        save_to_csv: Whether to save results to CSV
+        benchmark: Whether to save benchmark data
+        notes: Additional notes for benchmarking
+        
+    Returns:
+        pd.DataFrame: Combined DataFrame of all tracks
+    """
+    start_time = time.time()
+    commit_id = get_commit_id() if benchmark else None
+    
+    print(f"🎵 Starting track scraping benchmark...")
+    if max_episodes:
+        print(f"   Processing first {max_episodes} episodes")
+    else:
+        print(f"   Processing all {len(episodes_df)} episodes")
+    
+    # Perform the actual scraping
+    tracks_df = scrape_tracks_for_episodes(episodes_df, max_episodes, save_to_csv)
+    
+    end_time = time.time()
+    
+    # Calculate metrics
+    episodes_processed = len(episodes_df.head(max_episodes) if max_episodes else episodes_df)
+    tracks_found = len(tracks_df) if not tracks_df.empty else 0
+    
+    # Save benchmark data
+    if benchmark:
+        save_track_benchmark(
+            start_time=start_time,
+            end_time=end_time,
+            episodes_processed=episodes_processed,
+            tracks_found=tracks_found,
+            max_episodes=max_episodes,
+            commit_id=commit_id,
+            notes=notes
+        )
+    
+    return tracks_df
 
 
 def load_bbc6_episodes_from_db(db_url: str = "postgresql://setscraper:setscraper_password@localhost:5432/setscraper") -> pd.DataFrame:
@@ -265,6 +439,9 @@ def main():
     print("🎵 BBC Radio 6 Music Track Scraper")
     print("=" * 50)
     
+    # Show previous benchmarks
+    print_track_benchmark_summary()
+    
     # Load episodes from database
     episodes_df = load_bbc6_episodes_from_db()
     
@@ -272,8 +449,14 @@ def main():
         print("No BBC Radio 6 Music episodes found in database")
         return
     
-    # Scrape tracks (start with a small number for testing)
-    tracks_df = scrape_tracks_for_episodes(episodes_df, max_episodes=5, save_to_csv=True)
+    # Scrape tracks with benchmarking (start with a small number for testing)
+    tracks_df = scrape_tracks_with_benchmark(
+        episodes_df, 
+        max_episodes=5, 
+        save_to_csv=True,
+        benchmark=True,
+        notes=""
+    )
     
     if not tracks_df.empty:
         print(f"\n📊 Scraping Results:")
@@ -284,6 +467,9 @@ def main():
         # Show sample of tracks
         print(f"\n🎵 Sample tracks:")
         print(tracks_df[['track_order', 'artist', 'title', 'dj_name']].head(10))
+    
+    # Show updated benchmarks
+    print_track_benchmark_summary()
 
 
 if __name__ == "__main__":

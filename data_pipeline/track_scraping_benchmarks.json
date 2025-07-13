@@ -1,0 +1,17 @@
+[
+  {
+    "timestamp": "2025-07-13T18:01:12.767653",
+    "start_time": 1752422432.608542,
+    "end_time": 1752422472.767545,
+    "duration_seconds": 40.159003019332886,
+    "episodes_processed": 5,
+    "tracks_found": 31,
+    "episodes_per_second": 0.12450508289742546,
+    "episodes_per_minute": 7.470304973845527,
+    "tracks_per_second": 0.7719315139640378,
+    "tracks_per_episode": 6.2,
+    "max_episodes": 5,
+    "commit_id": "6dd76753",
+    "notes": "Test run - track scraping"
+  }
+]
