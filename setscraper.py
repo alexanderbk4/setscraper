@@ -49,9 +49,10 @@ def scrape_bbc6_episode(url):
                 artist_elem = segment.find_element(By.CLASS_NAME, "artist")
                 artist = artist_elem.text if artist_elem else "Unknown Artist"
                 
-                # Extract track title (simplified)
+                # Extract track title (improved)
                 title_container = segment.find_element(By.CSS_SELECTOR, "p.no-margin")
-                title = title_container.text.split('\n')[0]  # Simple approach first
+                title_span = title_container.find_element(By.TAG_NAME, "span")
+                title = title_span.text if title_span else "Unknown Title"
                 
                 tracks.append({
                     'artist': artist,
@@ -73,4 +74,3 @@ def scrape_bbc6_episode(url):
 
 # Test with one URL
 url = "https://www.bbc.co.uk/programmes/m002845d"
-scrape_bbc6_episode(url)
