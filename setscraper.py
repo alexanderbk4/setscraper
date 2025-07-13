@@ -54,9 +54,20 @@ def scrape_bbc6_episode(url):
                 title_span = title_container.find_element(By.TAG_NAME, "span")
                 title = title_span.text if title_span else "Unknown Title"
                 
+                # Look for featured artists
+                featured_artists = []
+                try:
+                    # Find any additional artist spans after "feat."
+                    feat_artists = title_container.find_elements(By.CLASS_NAME, "artist")
+                    if len(feat_artists) > 0:
+                        featured_artists = [fa.text for fa in feat_artists]
+                except:
+                    pass
+                
                 tracks.append({
                     'artist': artist,
                     'title': title,
+                    'featured_artists': featured_artists if featured_artists else None,
                 })
                 
             except Exception as e:
