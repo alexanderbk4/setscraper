@@ -8,7 +8,7 @@ from selenium.webdriver.common.by import By
 import pandas as pd
 
 
-def extract_tracks_from_episode(driver, dj_name, episode_title):
+def extract_tracks_from_episode(driver, dj_name, episode_title, ep_id):
     """
     Extract all tracks from a loaded episode page.
     
@@ -27,7 +27,7 @@ def extract_tracks_from_episode(driver, dj_name, episode_title):
     tracks = []
     for segment in music_segments:
         try:
-            track_data = extract_single_track(segment, dj_name, episode_title)
+            track_data = extract_single_track(segment, dj_name, episode_title, ep_id)
             if track_data:
                 tracks.append(track_data)
                 
@@ -38,7 +38,7 @@ def extract_tracks_from_episode(driver, dj_name, episode_title):
     return pd.DataFrame(tracks)
 
 
-def extract_single_track(segment, dj_name, episode_title):
+def extract_single_track(segment, dj_name, episode_title, ep_id):
     """
     Extract information from a single track segment.
     
@@ -70,6 +70,7 @@ def extract_single_track(segment, dj_name, episode_title):
         pass
     
     return {
+        'episode_id': ep_id,
         'dj': dj_name,
         'episode': episode_title,
         'artist': artist,

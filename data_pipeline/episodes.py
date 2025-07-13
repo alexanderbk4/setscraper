@@ -46,6 +46,7 @@ def scrape_bbc6_episode(url):
         # Extract episode metadata
         dj_name = driver.find_element(By.CSS_SELECTOR, "a.context__item").text
         episode_title = driver.find_element(By.CSS_SELECTOR, "h1.no-margin").text
+        ep_id = url.split('/')[-1]
         print(f"DJ: {dj_name}")
         print(f"Episode: {episode_title}")
 
@@ -59,8 +60,7 @@ def scrape_bbc6_episode(url):
             print("No 'Show more' button found")
 
         # Extract tracks using the tracks module
-        tracks_df = extract_tracks_from_episode(driver, dj_name, episode_title)
-        
+        tracks_df = extract_tracks_from_episode(driver, dj_name, episode_title, ep_id)
         return tracks_df
         
     except TimeoutException:
