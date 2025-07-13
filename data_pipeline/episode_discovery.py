@@ -5,6 +5,9 @@ This module systematically checks BBC URLs to find working episodes and extract 
 """
 
 import time
+import json
+import os
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -51,7 +54,8 @@ def generate_episode_ids(start_suffix: str = "0000", end_suffix: str = "zzzz"):
         yield f"m002{suffix}"
 
 
-def discover_episodes(start_suffix: str = "0000", end_suffix: str = "zzzz", step: int = 1):
+def discover_episodes(start_suffix: str = "0000", end_suffix: str = "zzzz", step: int = 1, 
+                     benchmark: bool = True, notes: str = ""):
     """
     Discover BBC episodes by checking URL patterns and extracting metadata.
     
@@ -59,10 +63,15 @@ def discover_episodes(start_suffix: str = "0000", end_suffix: str = "zzzz", step
         start_suffix (str): Starting 4-character suffix
         end_suffix (str): Ending 4-character suffix
         step (int): Step size for incrementing (use 1 for full scan)
+        benchmark (bool): Whether to save benchmark data
+        notes (str): Additional notes for benchmarking
         
     Returns:
         pd.DataFrame: DataFrame with episode_id, channel, show_name, episode_name, broadcast_date
     """
+    start_time = time.time()
+    commit_id = get_commit_id() if benchmark else None
+    
     chrome_options = Options()
     chrome_options.add_argument("--headless")  # Run headless for discovery
     chrome_options.add_argument("--no-sandbox")
@@ -115,6 +124,20 @@ def discover_episodes(start_suffix: str = "0000", end_suffix: str = "zzzz", step
             
     finally:
         driver.quit()
+    
+    end_time = time.time()
+    
+    # Save benchmark data
+    if benchmark:
+        save_benchmark(
+            start_time=start_time,
+            end_time=end_time,
+            episodes_processed=total_episodes,
+            start_suffix=start_suffix,
+            end_suffix=end_suffix,
+            commit_id=commit_id,
+            notes=notes
+        )
     
     return pd.DataFrame(discovered_episodes)
 
@@ -198,7 +221,8 @@ def extract_episode_metadata(driver, episode_id: str) -> Optional[Dict]:
         return None
 
 
-def discover_episodes_batch(start_suffix: str = "0000", end_suffix: str = "zzzz", batch_size: int = 1000):
+def discover_episodes_batch(start_suffix: str = "0000", end_suffix: str = "zzzz", batch_size: int = 1000,
+                           benchmark: bool = True, notes: str = ""):
     """
     Discover episodes in batches to avoid memory issues.
     
@@ -206,10 +230,15 @@ def discover_episodes_batch(start_suffix: str = "0000", end_suffix: str = "zzzz"
         start_suffix (str): Starting 4-character suffix
         end_suffix (str): Ending 4-character suffix
         batch_size (int): Number of episodes to process per batch
+        benchmark (bool): Whether to save benchmark data
+        notes (str): Additional notes for benchmarking
         
     Returns:
         pd.DataFrame: Combined results from all batches
     """
+    start_time = time.time()
+    commit_id = get_commit_id() if benchmark else None
+    
     all_results = []
     
     # Generate all episode IDs first
@@ -237,6 +266,21 @@ def discover_episodes_batch(start_suffix: str = "0000", end_suffix: str = "zzzz"
             combined_df = pd.concat(all_results, ignore_index=True)
             combined_df.to_csv(f"discovered_episodes_{batch_start_suffix}_{batch_end_suffix}.csv", index=False)
             print(f"Saved {len(combined_df)} episodes to CSV")
+    
+    end_time = time.time()
+    
+    # Save benchmark data
+    if benchmark:
+        save_benchmark(
+            start_time=start_time,
+            end_time=end_time,
+            episodes_processed=total_episodes,
+            start_suffix=start_suffix,
+            end_suffix=end_suffix,
+            batch_size=batch_size,
+            commit_id=commit_id,
+            notes=notes
+        )
     
     if all_results:
         return pd.concat(all_results, ignore_index=True)
@@ -302,14 +346,132 @@ def discover_episodes_batch_ids(episode_ids: List[str]):
     return pd.DataFrame(discovered_episodes)
 
 
+def save_benchmark(start_time: float, end_time: float, episodes_processed: int, 
+                  start_suffix: str, end_suffix: str, batch_size: int = None, 
+                  commit_id: str = None, notes: str = ""):
+    """
+    Save benchmark data to track performance improvements.
+    
+    Args:
+        start_time: Start timestamp
+        end_time: End timestamp
+        episodes_processed: Number of episodes processed
+        start_suffix: Starting suffix range
+        end_suffix: Ending suffix range
+        batch_size: Batch size if using batch processing
+        commit_id: Git commit ID for tracking
+        notes: Additional notes about the run
+    """
+    duration = end_time - start_time
+    episodes_per_second = episodes_processed / duration if duration > 0 else 0
+    episodes_per_minute = episodes_per_second * 60
+    
+    benchmark_data = {
+        'timestamp': datetime.now().isoformat(),
+        'start_time': start_time,
+        'end_time': end_time,
+        'duration_seconds': duration,
+        'episodes_processed': episodes_processed,
+        'episodes_per_second': episodes_per_second,
+        'episodes_per_minute': episodes_per_minute,
+        'start_suffix': start_suffix,
+        'end_suffix': end_suffix,
+        'batch_size': batch_size,
+        'commit_id': commit_id,
+        'notes': notes
+    }
+    
+    # Load existing benchmarks or create new file
+    benchmark_file = 'episode_discovery_benchmarks.json'
+    benchmarks = []
+    
+    if os.path.exists(benchmark_file):
+        try:
+            with open(benchmark_file, 'r') as f:
+                benchmarks = json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            benchmarks = []
+    
+    benchmarks.append(benchmark_data)
+    
+    # Save updated benchmarks
+    with open(benchmark_file, 'w') as f:
+        json.dump(benchmarks, f, indent=2)
+    
+    print(f"\n📊 BENCHMARK SAVED:")
+    print(f"   Duration: {duration:.2f} seconds")
+    print(f"   Episodes processed: {episodes_processed}")
+    print(f"   Speed: {episodes_per_second:.3f} episodes/second ({episodes_per_minute:.1f}/minute)")
+    print(f"   Benchmark saved to: {benchmark_file}")
+
+
+def get_commit_id():
+    """Get current git commit ID for benchmarking."""
+    try:
+        import subprocess
+        result = subprocess.run(['git', 'rev-parse', 'HEAD'], 
+                              capture_output=True, text=True, check=True)
+        return result.stdout.strip()[:8]  # First 8 characters
+    except:
+        return "unknown"
+
+
+def print_benchmark_summary():
+    """Print summary of all benchmarks."""
+    benchmark_file = 'episode_discovery_benchmarks.json'
+    
+    if not os.path.exists(benchmark_file):
+        print("No benchmarks found.")
+        return
+    
+    try:
+        with open(benchmark_file, 'r') as f:
+            benchmarks = json.load(f)
+        
+        if not benchmarks:
+            print("No benchmarks found.")
+            return
+        
+        print(f"\n📈 BENCHMARK SUMMARY ({len(benchmarks)} runs):")
+        print("-" * 60)
+        
+        for i, bench in enumerate(benchmarks[-5:], 1):  # Show last 5 runs
+            print(f"{i}. {bench['timestamp'][:19]} | "
+                  f"{bench['episodes_processed']} episodes | "
+                  f"{bench['episodes_per_minute']:.1f}/min | "
+                  f"{bench['notes']}")
+        
+        # Calculate averages
+        avg_speed = sum(b['episodes_per_minute'] for b in benchmarks) / len(benchmarks)
+        total_episodes = sum(b['episodes_processed'] for b in benchmarks)
+        total_time = sum(b['duration_seconds'] for b in benchmarks)
+        
+        print("-" * 60)
+        print(f"Average speed: {avg_speed:.1f} episodes/minute")
+        print(f"Total episodes processed: {total_episodes}")
+        print(f"Total time: {total_time/3600:.1f} hours")
+        
+    except Exception as e:
+        print(f"Error reading benchmarks: {e}")
+
+
 if __name__ == "__main__":
     # Example usage - start with a small range to test
     print("Starting BBC 6 Music episode discovery...")
     
+    # Show previous benchmarks
+    print_benchmark_summary()
+    
     # Test with a small range first - based on user's findings
     # Current episodes seem to be in d### or f### range
     # Let's test a small range around where we know episodes exist
-    test_df = discover_episodes(start_suffix="d000", end_suffix="d010", step=1)
+    test_df = discover_episodes(
+        start_suffix="d000", 
+        end_suffix="d010", 
+        step=1,
+        benchmark=True,
+        notes="Test run - small range"
+    )
     
     if not test_df.empty:
         print(f"\nDiscovered {len(test_df)} episodes:")
@@ -317,6 +479,9 @@ if __name__ == "__main__":
         test_df.to_csv("discovered_episodes_test.csv", index=False)
     else:
         print("No episodes discovered in test range")
+        
+    # Show updated benchmarks
+    print_benchmark_summary()
         
     # You can also test the full range systematically:
     # discover_episodes_batch(start_suffix="0000", end_suffix="zzzz", batch_size=1000) 
