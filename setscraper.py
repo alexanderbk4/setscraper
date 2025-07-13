@@ -86,5 +86,26 @@ def scrape_bbc6_episode(url):
     finally:
         driver.quit()
 
-# Test with one URL
-url = "https://www.bbc.co.uk/programmes/m002845d"
+# Example of how to use this for multiple DJs
+def analyze_multiple_djs(episode_urls):
+    all_data = []
+    
+    for url in episode_urls:
+        df = scrape_bbc6_episode(url)
+        all_data.append(df)
+    
+    # Combine all data
+    combined_df = pd.concat(all_data, ignore_index=True)
+    return combined_df
+
+# # Example episode URLs for different DJs
+# episode_urls = [
+#     "https://www.bbc.co.uk/programmes/m002845d",  # Lauren Laverne
+#     "https://www.bbc.co.uk/programmes/m00284xx",  # Tom Ravenscroft (replace with actual URL)
+#     # Add URLs for other DJs
+# ]
+
+# if __name__ == "__main__":
+#     # Test with one URL
+#     url = "https://www.bbc.co.uk/programmes/m002845d"
+#     scrape_bbc6_episode(url)
