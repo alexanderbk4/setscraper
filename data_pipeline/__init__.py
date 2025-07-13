@@ -8,6 +8,7 @@ from .episodes import scrape_bbc6_episode, analyze_multiple_djs
 from .tracks import extract_tracks_from_episode
 from .episode_discovery import discover_episodes_basic
 from .episode_discovery import discover_episodes_with_channel
+from .episode_discovery import discover_episodes_with_names
 
 __all__ = [
     'scrape_bbc6_episode',
