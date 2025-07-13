@@ -10,6 +10,9 @@ from .episode_discovery import (
     discover_episodes, 
     discover_episodes_batch, 
     discover_episodes_batch_ids,
+    discover_episodes_parallel,
+    discover_episodes_batch_parallel,
+    discover_episodes_parallel_ids,
     save_benchmark,
     print_benchmark_summary,
     get_commit_id
@@ -22,6 +25,9 @@ __all__ = [
     'discover_episodes',
     'discover_episodes_batch',
     'discover_episodes_batch_ids',
+    'discover_episodes_parallel',
+    'discover_episodes_batch_parallel',
+    'discover_episodes_parallel_ids',
     'save_benchmark',
     'print_benchmark_summary',
     'get_commit_id'

@@ -16,6 +16,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import pandas as pd
 from typing import List, Dict, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 
 def generate_episode_ids(start_suffix: str = "0000", end_suffix: str = "zzzz"):
@@ -374,9 +376,331 @@ def discover_episodes_batch_ids(episode_ids: List[str]):
     return pd.DataFrame(discovered_episodes)
 
 
+def discover_episodes_parallel(start_suffix: str = "0000", end_suffix: str = "zzzz", 
+                              max_workers: int = 3, benchmark: bool = True, notes: str = ""):
+    """
+    Discover BBC episodes using parallel processing with multiple browser instances.
+    
+    Args:
+        start_suffix (str): Starting 4-character suffix
+        end_suffix (str): Ending 4-character suffix
+        max_workers (int): Number of parallel threads/browser instances
+        benchmark (bool): Whether to save benchmark data
+        notes (str): Additional notes for benchmarking
+        
+    Returns:
+        pd.DataFrame: DataFrame with episode_id, channel, show_name, episode_name, broadcast_date
+    """
+    start_time = time.time()
+    commit_id = get_commit_id() if benchmark else None
+    
+    # Generate episode IDs
+    episode_ids = list(generate_episode_ids(start_suffix, end_suffix))
+    total_episodes = len(episode_ids)
+    
+    print(f"Checking {total_episodes} episode IDs from {start_suffix} to {end_suffix}")
+    print(f"Using {max_workers} parallel workers")
+    
+    # Split episode IDs into chunks for each worker
+    chunk_size = len(episode_ids) // max_workers
+    if len(episode_ids) % max_workers != 0:
+        chunk_size += 1
+    
+    episode_chunks = [episode_ids[i:i + chunk_size] for i in range(0, len(episode_ids), chunk_size)]
+    
+    # Thread-safe result collection
+    all_discovered_episodes = []
+    results_lock = threading.Lock()
+    
+    def process_chunk(chunk_episode_ids, worker_id):
+        """Process a chunk of episode IDs with a single browser instance."""
+        nonlocal all_discovered_episodes
+        
+        # Create browser options for this worker
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920,1080")
+        # Speed optimizations
+        chrome_options.add_argument("--disable-images")
+        chrome_options.add_argument("--disable-javascript")
+        chrome_options.add_argument("--disable-css")
+        chrome_options.add_argument("--disable-plugins")
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-logging")
+        chrome_options.add_argument("--disable-default-apps")
+        chrome_options.add_argument("--disable-sync")
+        chrome_options.add_argument("--disable-translate")
+        chrome_options.add_argument("--disable-web-security")
+        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+        chrome_options.add_argument("--memory-pressure-off")
+        chrome_options.add_argument("--max_old_space_size=4096")
+        
+        driver = None
+        chunk_results = []
+        
+        try:
+            driver = webdriver.Chrome(options=chrome_options)
+            
+            for i, episode_id in enumerate(chunk_episode_ids):
+                url = f"https://www.bbc.co.uk/programmes/{episode_id}"
+                
+                print(f"[Worker {worker_id}] Checking {episode_id}...", end=" ")
+                
+                try:
+                    driver.get(url)
+                    
+                    # Faster timeout for non-existent pages
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.TAG_NAME, "body"))
+                    )
+                    
+                    # Extract metadata if page exists
+                    episode_data = extract_episode_metadata(driver, episode_id)
+                    if episode_data:
+                        chunk_results.append(episode_data)
+                        print(f"✓ Found: [{episode_data['channel']}] {episode_data['show_name']} - {episode_data['episode_name']}")
+                    else:
+                        print("✗ No metadata found")
+                        
+                except TimeoutException:
+                    print("✗ Not an existing page")
+                except Exception as e:
+                    print(f"✗ Error: {str(e)[:50]}")
+                
+                # Reduced delay for faster processing
+                time.sleep(0.05)
+                
+        except Exception as e:
+            print(f"Worker {worker_id} error: {e}")
+        finally:
+            if driver:
+                driver.quit()
+        
+        # Add results to global list
+        with results_lock:
+            all_discovered_episodes.extend(chunk_results)
+            print(f"Worker {worker_id} completed: found {len(chunk_results)} episodes")
+    
+    # Process chunks in parallel
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all chunks
+        futures = [executor.submit(process_chunk, chunk, i) 
+                  for i, chunk in enumerate(episode_chunks)]
+        
+        # Wait for all to complete
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                print(f"Chunk processing error: {e}")
+    
+    end_time = time.time()
+    
+    # Save benchmark data
+    if benchmark:
+        save_benchmark(
+            start_time=start_time,
+            end_time=end_time,
+            episodes_processed=total_episodes,
+            start_suffix=start_suffix,
+            end_suffix=end_suffix,
+            max_workers=max_workers,
+            commit_id=commit_id,
+            notes=notes
+        )
+    
+    return pd.DataFrame(all_discovered_episodes)
+
+
+def discover_episodes_batch_parallel(start_suffix: str = "0000", end_suffix: str = "zzzz", 
+                                   batch_size: int = 1000, max_workers: int = 3,
+                                   benchmark: bool = True, notes: str = ""):
+    """
+    Discover episodes in parallel batches to avoid memory issues.
+    
+    Args:
+        start_suffix (str): Starting 4-character suffix
+        end_suffix (str): Ending 4-character suffix
+        batch_size (int): Number of episodes to process per batch
+        max_workers (int): Number of parallel threads per batch
+        benchmark (bool): Whether to save benchmark data
+        notes (str): Additional notes for benchmarking
+        
+    Returns:
+        pd.DataFrame: Combined results from all batches
+    """
+    start_time = time.time()
+    commit_id = get_commit_id() if benchmark else None
+    
+    all_results = []
+    
+    # Generate all episode IDs first
+    all_episode_ids = list(generate_episode_ids(start_suffix, end_suffix))
+    total_episodes = len(all_episode_ids)
+    
+    print(f"Total episodes to check: {total_episodes}")
+    print(f"Using {max_workers} parallel workers per batch")
+    
+    for i in range(0, total_episodes, batch_size):
+        batch_end_idx = min(i + batch_size, total_episodes)
+        batch_episode_ids = all_episode_ids[i:batch_end_idx]
+        
+        batch_start_suffix = batch_episode_ids[0][4:]  # Remove 'm002' prefix
+        batch_end_suffix = batch_episode_ids[-1][4:]
+        
+        print(f"\n=== Processing batch {batch_start_suffix} to {batch_end_suffix} ===")
+        
+        batch_df = discover_episodes_parallel_ids(batch_episode_ids, max_workers)
+        if not batch_df.empty:
+            all_results.append(batch_df)
+            print(f"Found {len(batch_df)} episodes in this batch")
+        
+        # Save intermediate results
+        if all_results:
+            combined_df = pd.concat(all_results, ignore_index=True)
+            combined_df.to_csv(f"discovered_episodes_{batch_start_suffix}_{batch_end_suffix}.csv", index=False)
+            print(f"Saved {len(combined_df)} episodes to CSV")
+    
+    end_time = time.time()
+    
+    # Save benchmark data
+    if benchmark:
+        save_benchmark(
+            start_time=start_time,
+            end_time=end_time,
+            episodes_processed=total_episodes,
+            start_suffix=start_suffix,
+            end_suffix=end_suffix,
+            batch_size=batch_size,
+            max_workers=max_workers,
+            commit_id=commit_id,
+            notes=notes
+        )
+    
+    if all_results:
+        return pd.concat(all_results, ignore_index=True)
+    else:
+        return pd.DataFrame()
+
+
+def discover_episodes_parallel_ids(episode_ids: List[str], max_workers: int = 3):
+    """
+    Discover episodes from a list of episode IDs using parallel processing.
+    
+    Args:
+        episode_ids (List[str]): List of episode IDs to check
+        max_workers (int): Number of parallel threads
+        
+    Returns:
+        pd.DataFrame: DataFrame with discovered episodes
+    """
+    total_episodes = len(episode_ids)
+    
+    # Split episode IDs into chunks for each worker
+    chunk_size = len(episode_ids) // max_workers
+    if len(episode_ids) % max_workers != 0:
+        chunk_size += 1
+    
+    episode_chunks = [episode_ids[i:i + chunk_size] for i in range(0, len(episode_ids), chunk_size)]
+    
+    # Thread-safe result collection
+    all_discovered_episodes = []
+    results_lock = threading.Lock()
+    
+    def process_chunk(chunk_episode_ids, worker_id):
+        """Process a chunk of episode IDs with a single browser instance."""
+        nonlocal all_discovered_episodes
+        
+        # Create browser options for this worker
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920,1080")
+        # Speed optimizations
+        chrome_options.add_argument("--disable-images")
+        chrome_options.add_argument("--disable-javascript")
+        chrome_options.add_argument("--disable-css")
+        chrome_options.add_argument("--disable-plugins")
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-logging")
+        chrome_options.add_argument("--disable-default-apps")
+        chrome_options.add_argument("--disable-sync")
+        chrome_options.add_argument("--disable-translate")
+        chrome_options.add_argument("--disable-web-security")
+        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+        chrome_options.add_argument("--memory-pressure-off")
+        chrome_options.add_argument("--max_old_space_size=4096")
+        
+        driver = None
+        chunk_results = []
+        
+        try:
+            driver = webdriver.Chrome(options=chrome_options)
+            
+            for i, episode_id in enumerate(chunk_episode_ids):
+                url = f"https://www.bbc.co.uk/programmes/{episode_id}"
+                
+                print(f"[Worker {worker_id}] Checking {episode_id}...", end=" ")
+                
+                try:
+                    driver.get(url)
+                    
+                    # Faster timeout for non-existent pages
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.TAG_NAME, "body"))
+                    )
+                    
+                    # Extract metadata if page exists
+                    episode_data = extract_episode_metadata(driver, episode_id)
+                    if episode_data:
+                        chunk_results.append(episode_data)
+                        print(f"✓ Found: [{episode_data['channel']}] {episode_data['show_name']} - {episode_data['episode_name']}")
+                    else:
+                        print("✗ No metadata found")
+                        
+                except TimeoutException:
+                    print("✗ Not an existing page")
+                except Exception as e:
+                    print(f"✗ Error: {str(e)[:50]}")
+                
+                # Reduced delay for faster processing
+                time.sleep(0.05)
+                
+        except Exception as e:
+            print(f"Worker {worker_id} error: {e}")
+        finally:
+            if driver:
+                driver.quit()
+        
+        # Add results to global list
+        with results_lock:
+            all_discovered_episodes.extend(chunk_results)
+            print(f"Worker {worker_id} completed: found {len(chunk_results)} episodes")
+    
+    # Process chunks in parallel
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all chunks
+        futures = [executor.submit(process_chunk, chunk, i) 
+                  for i, chunk in enumerate(episode_chunks)]
+        
+        # Wait for all to complete
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                print(f"Chunk processing error: {e}")
+    
+    return pd.DataFrame(all_discovered_episodes)
+
+
 def save_benchmark(start_time: float, end_time: float, episodes_processed: int, 
                   start_suffix: str, end_suffix: str, batch_size: int = None, 
-                  commit_id: str = None, notes: str = ""):
+                  max_workers: int = None, commit_id: str = None, notes: str = ""):
     """
     Save benchmark data to track performance improvements.
     
@@ -387,6 +711,7 @@ def save_benchmark(start_time: float, end_time: float, episodes_processed: int,
         start_suffix: Starting suffix range
         end_suffix: Ending suffix range
         batch_size: Batch size if using batch processing
+        max_workers: Number of parallel workers if using parallel processing
         commit_id: Git commit ID for tracking
         notes: Additional notes about the run
     """
@@ -405,12 +730,13 @@ def save_benchmark(start_time: float, end_time: float, episodes_processed: int,
         'start_suffix': start_suffix,
         'end_suffix': end_suffix,
         'batch_size': batch_size,
+        'max_workers': max_workers,
         'commit_id': commit_id,
         'notes': notes
     }
     
     # Load existing benchmarks or create new file
-    benchmark_file = 'episode_discovery_benchmarks.json'
+    benchmark_file = os.path.join(os.path.dirname(__file__), 'episode_discovery_benchmarks.json')
     benchmarks = []
     
     if os.path.exists(benchmark_file):
@@ -446,7 +772,7 @@ def get_commit_id():
 
 def print_benchmark_summary():
     """Print summary of all benchmarks."""
-    benchmark_file = 'episode_discovery_benchmarks.json'
+    benchmark_file = os.path.join(os.path.dirname(__file__), 'episode_discovery_benchmarks.json')
     
     if not os.path.exists(benchmark_file):
         print("No benchmarks found.")
@@ -493,23 +819,42 @@ if __name__ == "__main__":
     # Test with a small range first - based on user's findings
     # Current episodes seem to be in d### or f### range
     # Let's test a small range around where we know episodes exist
+    print("\n=== Testing single-threaded processing ===")
     test_df = discover_episodes(
         start_suffix="d000", 
         end_suffix="d010", 
         step=1,
         benchmark=True,
-        notes="Test run - small range"
+        notes="Test run - single-threaded"
     )
     
     if not test_df.empty:
         print(f"\nDiscovered {len(test_df)} episodes:")
         print(test_df)
-        test_df.to_csv("discovered_episodes_test.csv", index=False)
+        test_df.to_csv("discovered_episodes_test_single.csv", index=False)
     else:
         print("No episodes discovered in test range")
+    
+    # Test parallel processing
+    print("\n=== Testing parallel processing ===")
+    test_df_parallel = discover_episodes_parallel(
+        start_suffix="d000", 
+        end_suffix="d010", 
+        max_workers=3,
+        benchmark=True,
+        notes="Test run - parallel (3 workers)"
+    )
+    
+    if not test_df_parallel.empty:
+        print(f"\nDiscovered {len(test_df_parallel)} episodes (parallel):")
+        print(test_df_parallel)
+        test_df_parallel.to_csv("discovered_episodes_test_parallel.csv", index=False)
+    else:
+        print("No episodes discovered in parallel test range")
         
     # Show updated benchmarks
     print_benchmark_summary()
         
     # You can also test the full range systematically:
-    # discover_episodes_batch(start_suffix="0000", end_suffix="zzzz", batch_size=1000) 
+    # discover_episodes_batch(start_suffix="0000", end_suffix="zzzz", batch_size=1000)
+    # discover_episodes_batch_parallel(start_suffix="0000", end_suffix="zzzz", batch_size=1000, max_workers=3) 
