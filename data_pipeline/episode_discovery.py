@@ -57,7 +57,7 @@ def generate_episode_ids(start_suffix: str = "0000", end_suffix: str = "zzzz"):
 
 
 def discover_episodes(start_suffix: str = "0000", end_suffix: str = "zzzz", step: int = 1, 
-                     benchmark: bool = True, notes: str = ""):
+                     benchmark: bool = False, notes: str = ""):
     """
     Discover BBC episodes by checking URL patterns and extracting metadata.
     
@@ -238,7 +238,7 @@ def extract_episode_metadata(driver, episode_id: str) -> Optional[Dict]:
 
 
 def discover_episodes_batch(start_suffix: str = "0000", end_suffix: str = "zzzz", batch_size: int = 1000,
-                           benchmark: bool = True, notes: str = ""):
+                           benchmark: bool = False, notes: str = ""):
     """
     Discover episodes in batches to avoid memory issues.
     
@@ -377,7 +377,7 @@ def discover_episodes_batch_ids(episode_ids: List[str]):
 
 
 def discover_episodes_parallel(start_suffix: str = "0000", end_suffix: str = "zzzz", 
-                              max_workers: int = 3, benchmark: bool = True, notes: str = ""):
+                              max_workers: int = 3, benchmark: bool = False, notes: str = ""):
     """
     Discover BBC episodes using parallel processing with multiple browser instances.
     
@@ -517,7 +517,7 @@ def discover_episodes_parallel(start_suffix: str = "0000", end_suffix: str = "zz
 
 def discover_episodes_batch_parallel(start_suffix: str = "0000", end_suffix: str = "zzzz", 
                                    batch_size: int = 1000, max_workers: int = 3,
-                                   benchmark: bool = True, notes: str = ""):
+                                   benchmark: bool = False, notes: str = ""):
     """
     Discover episodes in parallel batches to avoid memory issues.
     
